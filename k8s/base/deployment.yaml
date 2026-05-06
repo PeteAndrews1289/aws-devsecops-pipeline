@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vulnerable-flask-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vulnerable-flask
+  template:
+    metadata:
+      labels:
+        app: vulnerable-flask
+    spec:
+      containers:
+      - name: flask-container
+        image: 134943601314.dkr.ecr.us-east-2.amazonaws.com/devsecops-flask-app:vulnerable
+        imagePullPolicy: Always
+        env:
+        - name: SPLUNK_HEC_URL
+          value: "https://popcorn-showdown-satchel.ngrok-free.dev"
+        - name: SPLUNK_HEC_TOKEN
+          value: "f47c657e-e848-47b9-b6d3-dfda7b67e797"
+        ports:
+        - containerPort: 5000

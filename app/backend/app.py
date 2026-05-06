@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
 import subprocess
 import os
+import requests
+import datetime
 
 app = Flask(__name__)
 
@@ -9,6 +11,41 @@ app = Flask(__name__)
 AWS_ACCESS_KEY_ID = "AKIAIOSFODNN7EXAMPLE" 
 AWS_SECRET_ACCESS_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 SUPER_SECRET_API_TOKEN = "ghp_1234567890abcdefghijklmnopqrstuvwxyz"
+
+# Fetch Splunk configuration from Kubernetes environment variables
+SPLUNK_HEC_URL = os.environ.get('SPLUNK_HEC_URL')
+SPLUNK_HEC_TOKEN = os.environ.get('SPLUNK_HEC_TOKEN')
+
+def log_to_splunk(event_name, severity, details):
+    """Formats the security event and sends it to Splunk via HEC"""
+    if not SPLUNK_HEC_URL or not SPLUNK_HEC_TOKEN:
+        print("Splunk HEC configuration missing. Skipping log.")
+        return
+
+    # Splunk HEC requires events to be wrapped in an 'event' key
+    splunk_payload = {
+        "time": datetime.datetime.now().timestamp(),
+        "host": "devsecops-flask-pod",
+        "sourcetype": "_json",
+        "event": {
+            "action": event_name,
+            "severity": severity,
+            "source_ip": request.remote_addr,
+            "details": details
+        }
+    }
+
+    headers = {
+        "Authorization": f"Splunk {SPLUNK_HEC_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        # Append the specific HEC endpoint to the base ngrok URL
+        endpoint = f"{SPLUNK_HEC_URL}/services/collector/event"
+        requests.post(endpoint, headers=headers, json=splunk_payload, verify=False, timeout=3)
+    except Exception as e:
+        print(f"Failed to send log to Splunk: {e}")
 
 @app.route('/api/status', methods=['GET'])
 def status():
@@ -21,6 +58,10 @@ def ping_host():
     data = request.get_json()
     # If no target is provided, default to localhost
     target = data.get('target', '127.0.0.1')
+
+    # SECURITY LOGGING: Detect Command Injection attempts and send to Splunk
+    if ";" in target or "|" in target or "&" in target:
+        log_to_splunk("command_injection_attempt", "CRITICAL", f"Malicious payload detected in ping target: {target}")
 
     # INSECURE: Directly passing unsanitized user input to a system shell
     command = f"ping -c 1 {target}"
