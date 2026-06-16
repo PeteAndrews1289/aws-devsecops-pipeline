@@ -118,9 +118,9 @@ The main security finding is that vulnerable application behavior can be detecte
 
 The project also highlights areas that would need hardening before any production use, including replacing demo secrets with Kubernetes Secrets or a secret manager, disabling debug mode, validating command input safely, and using secure runtime configuration.
 
-## Screenshots
+## Evidence / Artifacts
 
-Existing screenshots in this repository:
+Existing evidence in this repository:
 
 - `docs/screenshots/trivy-pipeline-failure.png`
 - `docs/screenshots/trivy-python-cve.png`
@@ -129,15 +129,11 @@ Existing screenshots in this repository:
 - `docs/screenshots/k8-ctl.png`
 - `docs/screenshots/command-injection.png`
 - `docs/screenshots/splunk-command-injection-log.png`
-
-Suggested additional screenshots:
-
-- `docs/screenshots/github-actions-workflow-overview.png`
-- `docs/screenshots/ecr-image-repository.png`
-- `docs/screenshots/eks-nodegroup-status.png`
-- `docs/screenshots/splunk-dashboard-overview.png`
-- `docs/screenshots/remediated-pipeline-success.png`
-- `docs/screenshots/architecture.png`
+- `docs/evidence-summary.md`
+- `.github/workflows/devsecops.yml`
+- `terraform/`
+- `k8s/base/`
+- `app/backend/`
 
 ## Challenges & Lessons Learned
 
