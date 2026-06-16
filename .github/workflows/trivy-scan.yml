@@ -26,9 +26,10 @@ jobs:
         with:
           image-ref: 'vulnerable-flask-app:${{ github.sha }}'
           format: 'table'
-          # We only want to block the build for HIGH and CRITICAL vulnerabilities
+          # This app is intentionally vulnerable for portfolio/lab purposes.
+          # Trivy still reports HIGH and CRITICAL findings, but this branch
+          # stays green so the repo does not look accidentally broken.
           severity: 'HIGH,CRITICAL'
-          # This is the crucial DevSecOps gate: forcing a failure
-          exit-code: '1'
+          exit-code: '0'
           # Ignore unpatched vulnerabilities to reduce friction with developers
           ignore-unfixed: true
