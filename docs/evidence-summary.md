@@ -10,9 +10,9 @@ This file summarizes the non-screenshot evidence a reviewer can inspect in this 
 
 ## CI/CD Evidence
 
-- `.github/workflows/devsecops.yml` builds the Docker image and runs Trivy.
-- The Trivy configuration fails the workflow on high and critical findings.
-- The workflow demonstrates a basic shift-left security gate.
+- `.github/workflows/trivy-scan.yml` builds the Docker image and runs Trivy.
+- The Trivy configuration reports high and critical findings from the intentionally vulnerable image.
+- The workflow is advisory on `main` so the portfolio branch stays green while still showing scanner output.
 
 ## Cloud / Infrastructure Evidence
 
@@ -33,4 +33,4 @@ This file summarizes the non-screenshot evidence a reviewer can inspect in this 
 
 ## Reviewer Takeaway
 
-This project is strongest when reviewed as an end-to-end DevSecOps lab: vulnerable app, CI scan gate, cloud deployment, runtime attack simulation, and SIEM telemetry.
+This project is strongest when reviewed as an end-to-end DevSecOps lab: vulnerable app, Trivy scanner output, cloud deployment, runtime attack simulation, and SIEM telemetry.
