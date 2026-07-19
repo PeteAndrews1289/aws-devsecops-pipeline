@@ -1,36 +1,31 @@
 # Evidence Summary
 
-This file summarizes the non-screenshot evidence a reviewer can inspect in this repository.
+## Current, reproducible evidence
 
-## Application Security Evidence
+| Claim | Reviewable artifact | What it proves |
+|---|---|---|
+| The vulnerable target still contains an unsafe command path | `app/backend/app.py` | A clearly isolated scanner/training target uses shell interpolation intentionally. |
+| The remediated target rejects injection syntax | `app/remediated/tests/test_app.py` | Regression tests cover malformed JSON, shell metacharacters, hostnames, IPv4, IPv6, and HEC transport behavior. |
+| The secure target—not the demo—is gated | `.github/workflows/trivy-scan.yml` | Tests, Bandit, hygiene validation, and the remediated image scan are blocking; the vulnerable scan is advisory. |
+| Repository configuration is free of checked-in operational identifiers | `scripts/validate_repository.py` | CI checks text files, action pins, Kubernetes settings, and target separation. |
+| Infrastructure syntax is valid | `terraform/` plus the CI workflow | Terraform formatting and validation run without AWS credentials or deployment. |
+| Kubernetes defaults target the remediated app | `k8s/base/` | The example uses a private service, non-root runtime controls, and external configuration references. |
 
-- `app/backend/app.py` contains an intentionally vulnerable Flask API used for training and scanner validation.
-- The `/api/ping` route demonstrates command injection risk in a controlled lab context.
-- The app emits structured JSON security events for suspicious payloads before sending them to Splunk HEC.
+## Historical evidence
 
-## CI/CD Evidence
+| Artifact | Observation | Limitation |
+|---|---|---|
+| `docs/screenshots/trivy-debian-cve.png` | The deliberately old Debian image produced HIGH package findings. | Point-in-time scanner database and image state. |
+| `docs/screenshots/trivy-python-cve.png` | The deliberately obsolete Python packages produced HIGH findings. | Point-in-time result; current CI output supersedes counts. |
+| `docs/screenshots/trivy-pipeline-failure.png` | An earlier workflow failed when expected vulnerable findings were treated as the release target. | The screenshot predates action pinning and target separation. |
+| `docs/screenshots/splunk-command-injection-log.png` | One structured `command_injection_attempt` event reached Splunk during the controlled lab. | One event proves ingestion, not coverage, reliability, or production readiness. |
 
-- `.github/workflows/trivy-scan.yml` builds the Docker image and runs Trivy.
-- The Trivy configuration reports high and critical findings from the intentionally vulnerable image.
-- The workflow is advisory on `main` so the portfolio branch stays green while still showing scanner output.
+Screenshots that displayed retired public endpoints, account-specific image paths, or raw shell output are intentionally absent from the current branch. They remain available in Git history if provenance is required.
 
-## Cloud / Infrastructure Evidence
+## Claims this repository does not make
 
-- `terraform/vpc.tf` provisions a VPC with public and private subnets.
-- `terraform/ecr.tf` provisions an ECR repository for the application image.
-- `terraform/eks.tf` provisions EKS resources for the Kubernetes deployment.
-
-## Kubernetes Evidence
-
-- `k8s/base/deployment.yaml` defines the vulnerable Flask deployment.
-- `k8s/base/service.yaml` exposes the application service.
-- Environment variables connect the app to Splunk HEC for runtime security events.
-
-## Runtime Detection Evidence
-
-- `docs/screenshots/splunk-command-injection-log.png` shows a command injection event reaching Splunk.
-- The runtime path demonstrates the "shield-right" side of the lab: attack attempts should produce searchable security telemetry.
-
-## Reviewer Takeaway
-
-This project is strongest when reviewed as an end-to-end DevSecOps lab: vulnerable app, Trivy scanner output, cloud deployment, runtime attack simulation, and SIEM telemetry.
+- No environment is currently running.
+- CI does not push an image to ECR or deploy to EKS.
+- Terraform validation is not a successful plan or apply.
+- A single Splunk event is not evidence of complete detection coverage.
+- The intentionally vulnerable image is not safe to deploy publicly.

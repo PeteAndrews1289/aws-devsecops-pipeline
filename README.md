@@ -1,161 +1,121 @@
-# AWS DevSecOps CI/CD Pipeline and Runtime SOC Lab
+# AWS DevSecOps: Vulnerable Evidence vs. Remediated Gate
 
-## Overview
+[![DevSecOps validation](https://github.com/PeteAndrews1289/aws-devsecops-pipeline/actions/workflows/trivy-scan.yml/badge.svg)](https://github.com/PeteAndrews1289/aws-devsecops-pipeline/actions/workflows/trivy-scan.yml)
 
-This project demonstrates a hands-on DevSecOps lab that combines application security testing, container scanning, AWS infrastructure, Kubernetes deployment, and runtime security monitoring. It addresses a common security engineering problem: vulnerable application code should be caught before deployment, but runtime attacks still need to be logged, detected, and investigated after the application is exposed.
+> **Portfolio status:** completed and decommissioned lab. No AWS, Kubernetes, ngrok, or Splunk resources from the exercise are expected to be live.
 
-The lab uses an intentionally vulnerable Python/Flask API to generate realistic AppSec findings, including hardcoded secrets, outdated dependencies, debug exposure, and command injection. A GitHub Actions workflow builds the Docker image and runs Trivy against it so the vulnerable findings are visible in CI. The cloud side uses Terraform, AWS ECR, EKS, VPC networking, Kubernetes manifests, and Splunk HEC-based runtime logging.
+This repository compares two deliberately different application targets:
 
-The repository is useful as a portfolio project because it connects "shift-left" security controls with "shield-right" runtime monitoring. It shows how vulnerable code can be scanned in CI/CD, deployed into a cloud environment for controlled testing, attacked, and monitored in Splunk.
+- `app/backend/` is an **intentionally vulnerable evidence target**. It retains command injection, old dependencies, debug mode, and a root container so scanners and runtime detections have something meaningful to find.
+- `app/remediated/` is a **reviewable remediation target**. It rejects shell payloads, avoids shell execution, validates request types and IP addresses, verifies TLS, runs as a non-root container user, and has regression tests.
 
-## Key Features
+CI reports findings from the vulnerable image without treating the expected findings as a release failure. The remediated application is the blocking path: tests, Bandit, repository hygiene checks, and HIGH/CRITICAL Trivy findings can fail the pull request.
 
-- Built an intentionally vulnerable Flask API for DevSecOps testing.
-- Added insecure patterns such as hardcoded demo secrets, vulnerable dependencies, debug mode, and command injection.
-- Created a GitHub Actions workflow that builds a Docker image and scans it with Trivy.
-- Configured Trivy to report high and critical findings without keeping the intentionally vulnerable lab branch red.
-- Provisioned AWS infrastructure with Terraform, including VPC, ECR, and EKS resources.
-- Deployed the Flask application to Kubernetes using deployment and service manifests.
-- Routed runtime security events to Splunk through HTTP Event Collector.
-- Simulated command injection against the `/api/ping` endpoint.
-- Captured command injection attempts in Splunk for SOC-style monitoring.
-- Included screenshots showing Trivy failures, Kubernetes deployment status, command injection, and Splunk logs.
-
-## Architecture
-
-The lab starts with source code in GitHub. GitHub Actions builds the backend container and scans it with Trivy. Terraform provisions AWS infrastructure, including a VPC, ECR, and EKS. Kubernetes runs the vulnerable Flask API, and simulated attacks against the API generate JSON security events that are sent to Splunk HEC.
+## What this repository demonstrates
 
 ```mermaid
 flowchart LR
-    Dev[Developer Push] --> GHA[GitHub Actions]
-    GHA --> Build[Docker Build]
-    Build --> Trivy[Trivy Scan]
-    Trivy -->|Findings| Report[Scanner Findings]
-    Build --> ECR[AWS ECR]
+    Push[Pull request or push] --> Vuln[Build vulnerable image]
+    Vuln --> Advisory[Trivy evidence scan<br/>advisory]
 
-    subgraph AWS[AWS Cloud]
-        VPC[VPC with Public and Private Subnets]
-        EKS[Amazon EKS]
-        Pod[Flask API Pods]
-        ALB[Load Balancer]
-    end
+    Push --> Fixed[Build remediated image]
+    Fixed --> Tests[Regression tests + Bandit]
+    Fixed --> Blocking[Trivy HIGH/CRITICAL gate<br/>blocking]
 
-    ECR --> EKS
-    VPC --> EKS
-    EKS --> Pod
-    ALB --> Pod
-    Attacker[Simulated Attack] --> ALB
-    Pod -->|Security Event JSON| Splunk[Splunk HEC / SIEM]
-    Splunk --> Dashboard[SOC Dashboard]
+    Push --> IaC[Terraform fmt + validate]
+
+    Historical[Controlled, historical runtime lab] --> K8s[Kubernetes]
+    K8s --> Event[Structured rejection / attack event]
+    Event --> Splunk[Splunk HEC]
 ```
 
-## Tools & Technologies
+The GitHub Actions workflow validates and scans repository artifacts. It does **not** authenticate to AWS, push to ECR, apply Terraform, deploy to EKS, or prove that a live environment currently exists.
 
-### Cloud / Infrastructure
+## Security comparison
 
-- AWS VPC
-- Amazon EKS
-- Amazon ECR
-- Application Load Balancer
-- Terraform
-- Kubernetes
+| Control | Vulnerable evidence target | Remediated target |
+|---|---|---|
+| User input | Interpolated into a shell command | Requires a JSON object and a literal IPv4/IPv6 address |
+| Command execution | `shell=True` by design | No shell or operating-system command execution |
+| Dependencies | Deliberately obsolete | Fully pinned current dependency set |
+| Runtime mode | Flask debug server | Gunicorn, debug disabled |
+| Container identity | Root | Dedicated UID/GID 10001 |
+| Telemetry transport | TLS verification enabled, but vulnerable app behavior remains | HTTPS-only HEC URL validation and normal certificate verification |
+| CI policy | Advisory scanner evidence | Tests and security checks are blocking |
 
-### Security Tools
+The detailed mapping is in [`docs/findings-comparison.md`](docs/findings-comparison.md).
 
-- Trivy container and vulnerability scanning
-- Splunk Enterprise
-- Splunk HTTP Event Collector
-- Command injection simulation
+## Evidence and limits
 
-### Programming / Scripting
+The historical lab produced three kinds of evidence:
 
-- Python
-- Flask
-- Docker
-- YAML
-- Terraform HCL
+1. Trivy identified OS and Python package vulnerabilities in the intentionally old image.
+2. A controlled command-injection request reached the vulnerable endpoint.
+3. Splunk received one structured `command_injection_attempt` event from that exercise.
 
-### Monitoring / Logging
+![Historical Trivy Python dependency findings](docs/screenshots/trivy-python-cve.png)
 
-- Runtime JSON security events
-- Splunk HEC ingestion
-- Splunk searches and dashboard screenshots
+![Historical Splunk command-injection event](docs/screenshots/splunk-command-injection-log.png)
 
-### Automation / CI/CD
+The screenshots are point-in-time evidence, not a current benchmark. Scanner databases change, so the current Actions run is authoritative for current findings. Screenshots containing retired public endpoints, account-specific registry paths, or raw shell output were removed from the current branch; they remain recoverable in Git history.
 
-- GitHub Actions
-- Docker image build workflow
-- Trivy scan reporting for high and critical findings
+See [`docs/evidence-summary.md`](docs/evidence-summary.md) for the evidence inventory and explicit limitations.
 
-## Security Concepts Demonstrated
+## Repository layout
 
-This project demonstrates secure SDLC, DevSecOps, container security, vulnerability scanning, cloud infrastructure as code, Kubernetes deployment, runtime attack detection, and SIEM integration.
+```text
+app/backend/                  intentionally vulnerable Flask target
+app/remediated/               hardened comparison target and tests
+k8s/base/                     remediated, private-by-default Kubernetes example
+terraform/                    VPC, ECR, and EKS infrastructure example
+scripts/validate_repository.py hygiene and configuration assertions
+docs/                         findings, lifecycle notes, and historical evidence
+.github/workflows/            pinned, least-privilege validation pipeline
+```
 
-The CI/CD portion shows how automated scanning can catch vulnerable dependencies and secret-like values before deployment. Because the application is intentionally vulnerable, the portfolio branch keeps Trivy in reporting mode instead of failing every run. The runtime portion shows that prevention is not enough: once an application is reachable, attempted exploitation should create structured telemetry that a SOC can search and investigate.
+## Run the remediated target locally
 
-The lab also demonstrates the difference between intentionally vulnerable training code and production-ready deployment patterns. Some files intentionally contain insecure examples for scanner validation and attack simulation.
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r app/remediated/requirements-dev.txt
+pytest -q app/remediated/tests
+bandit -q -r app/remediated -x app/remediated/tests
+python scripts/validate_repository.py
+gunicorn --chdir app/remediated --bind 127.0.0.1:5000 app:app
+```
 
-## Implementation Steps
+Example validation request:
 
-1. Built a Python/Flask API with intentionally vulnerable behavior.
-2. Added a `/api/ping` endpoint that demonstrates command injection risk.
-3. Added JSON security logging for suspicious payloads.
-4. Created a Dockerfile and containerized the application.
-5. Added a GitHub Actions workflow to build and scan the Docker image.
-6. Configured Trivy to report high and critical findings from the intentionally vulnerable image.
-7. Created Terraform files for VPC, ECR, and EKS infrastructure.
-8. Added Kubernetes manifests for application deployment and service exposure.
-9. Configured runtime event forwarding to Splunk HEC.
-10. Simulated a command injection payload against the live endpoint.
-11. Verified detection of the payload in Splunk.
-12. Captured screenshots of pipeline, cloud, runtime, and SIEM evidence.
+```bash
+curl -sS -X POST http://127.0.0.1:5000/api/ping \
+  -H 'Content-Type: application/json' \
+  -d '{"target":"8.8.8.8"}'
+```
 
-## Results / Findings
+An input such as `8.8.8.8; cat /etc/passwd` receives HTTP 400 and is never executed.
 
-The lab produced CI/CD evidence showing Trivy identifying vulnerable packages in the intentionally vulnerable image. Earlier evidence captures the scanner failing securely; the current workflow keeps the scan advisory on `main` so the public portfolio branch does not look accidentally broken. Screenshots also show Kubernetes deployment status, command injection testing, and Splunk receiving the security event generated by the vulnerable endpoint.
+## Validate the infrastructure example
 
-The main security finding is that vulnerable application behavior can be detected at multiple stages. CI/CD scanning identifies vulnerable dependencies and secret-like values before deployment, while runtime logging captures exploit attempts that occur after exposure.
+```bash
+terraform -chdir=terraform fmt -check -recursive
+terraform -chdir=terraform init -backend=false
+terraform -chdir=terraform validate
+```
 
-The project also highlights areas that would need hardening before any production use, including replacing demo secrets with Kubernetes Secrets or a secret manager, disabling debug mode, validating command input safely, and using secure runtime configuration.
+The Terraform configuration requires an explicit `kubernetes_version` value before planning or applying so the repository does not silently recommend a stale EKS release. Its default posture uses private EKS API access, control-plane logs, immutable ECR tags, image scanning, and encrypted ECR storage.
 
-## Evidence / Artifacts
+The Kubernetes base is the remediated target, uses `ClusterIP`, drops Linux capabilities, disables privilege escalation, enables the default seccomp profile, and reads optional Splunk configuration from a ConfigMap and Secret. No HEC token or account-specific image registry is stored in Git.
 
-Existing evidence in this repository:
+## Safe lab use
 
-- `docs/screenshots/trivy-pipeline-failure.png`
-- `docs/screenshots/trivy-python-cve.png`
-- `docs/screenshots/trivy-debian-cve.png`
-- `docs/screenshots/k8s-app-live-status.png`
-- `docs/screenshots/k8-ctl.png`
-- `docs/screenshots/command-injection.png`
-- `docs/screenshots/splunk-command-injection-log.png`
-- `docs/evidence-summary.md`
-- `.github/workflows/trivy-scan.yml`
-- `terraform/`
-- `k8s/base/`
-- `app/backend/`
+Do not expose `app/backend/` to the internet or provide it real credentials. Use only isolated, disposable infrastructure and synthetic data. The vulnerable code is retained solely for scanner validation and controlled demonstrations.
 
-## Challenges & Lessons Learned
+Before provisioning anything, review [`docs/lab-lifecycle.md`](docs/lab-lifecycle.md), estimate AWS cost, choose a currently supported EKS version, and define a teardown checkpoint. The original exercise was dismantled after completion.
 
-- CI/CD scanners can run in advisory mode for intentionally vulnerable training branches, then become blocking gates for remediated branches.
-- Runtime logging adds important visibility after an application is deployed.
-- Intentionally vulnerable code should be clearly labeled and isolated from real production environments.
-- Cloud deployment labs need strong secret hygiene, even when values are only used for demonstrations.
-- Kubernetes and Splunk integration requires careful environment-variable and network configuration.
+## Honest next steps
 
-## Relevance to Security Roles
-
-This project maps to DevSecOps Engineer, Application Security Engineer, Cloud Security Engineer, Detection Engineer, and SOC Analyst roles. It demonstrates secure pipeline design, vulnerability scanning, infrastructure as code, Kubernetes deployment, exploit simulation, and SIEM-based runtime monitoring.
-
-It is especially useful for interviews because it connects application security findings with cloud deployment and runtime detection.
-
-## Future Improvements
-
-- Add a remediated version of the vulnerable Flask endpoint.
-- Move demo secrets and Splunk HEC values into Kubernetes Secrets or AWS Secrets Manager.
-- Add Semgrep or Bandit for source-code security scanning.
-- Add Terraform security scanning with Checkov or tfsec.
-- Add unit tests for input validation.
-- Add exported Splunk dashboard configuration.
-- Add a short findings report comparing vulnerable and remediated pipeline results.
-- Add a cost and cleanup section for AWS resource teardown.
+- Add a tested AWS OIDC role and ECR push stage before describing the workflow as deployment automation.
+- Export sanitized Splunk searches/dashboards as code instead of relying on screenshots.
+- Add a temporary integration environment that proves the remediated image can run under the Kubernetes security context.
+- Produce a versioned scanner-results artifact if long-term finding trends are needed.
