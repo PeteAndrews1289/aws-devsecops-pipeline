@@ -1,25 +1,72 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vulnerable-flask-app
+  name: remediated-flask-app
+  labels:
+    app.kubernetes.io/name: remediated-flask-app
+    app.kubernetes.io/part-of: devsecops-comparison-lab
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: vulnerable-flask
+      app.kubernetes.io/name: remediated-flask-app
   template:
     metadata:
       labels:
-        app: vulnerable-flask
+        app.kubernetes.io/name: remediated-flask-app
+        app.kubernetes.io/part-of: devsecops-comparison-lab
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
-      - name: flask-container
-        image: 134943601314.dkr.ecr.us-east-2.amazonaws.com/devsecops-flask-app:vulnerable
-        imagePullPolicy: Always
-        env:
-        - name: SPLUNK_HEC_URL
-          value: "https://popcorn-showdown-satchel.ngrok-free.dev"
-        - name: SPLUNK_HEC_TOKEN
-          value: "f47c657e-e848-47b9-b6d3-dfda7b67e797"
-        ports:
-        - containerPort: 5000
+        - name: flask-container
+          image: devsecops-flask-app:remediated
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: SPLUNK_HEC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-logging
+                  key: splunkHecUrl
+                  optional: true
+            - name: SPLUNK_HEC_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-logging
+                  key: splunkHecToken
+                  optional: true
+          ports:
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/status
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

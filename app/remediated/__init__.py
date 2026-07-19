@@ -1,0 +1,1 @@
+"""Remediated application target."""

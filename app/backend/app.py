@@ -1,3 +1,5 @@
+"""Intentionally vulnerable training target. Never expose this application publicly."""
+
 from flask import Flask, request, jsonify
 import subprocess
 import os
@@ -5,12 +7,6 @@ import requests
 import datetime
 
 app = Flask(__name__)
-
-# VULNERABILITY 1: Hardcoded Secrets
-# Trivy's secret scanner will catch standard dummy AWS keys and API tokens.
-AWS_ACCESS_KEY_ID = "AKIAIOSFODNN7EXAMPLE" 
-AWS_SECRET_ACCESS_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-SUPER_SECRET_API_TOKEN = "ghp_1234567890abcdefghijklmnopqrstuvwxyz"
 
 # Fetch Splunk configuration from Kubernetes environment variables
 SPLUNK_HEC_URL = os.environ.get('SPLUNK_HEC_URL')
@@ -41,10 +37,11 @@ def log_to_splunk(event_name, severity, details):
     }
 
     try:
-        # Append the specific HEC endpoint to the base ngrok URL
+        # Requests verifies the server certificate by default. Earlier lab code
+        # disabled this check; even the vulnerable target no longer does so.
         endpoint = f"{SPLUNK_HEC_URL}/services/collector/event"
-        requests.post(endpoint, headers=headers, json=splunk_payload, verify=False, timeout=3)
-    except Exception as e:
+        requests.post(endpoint, headers=headers, json=splunk_payload, timeout=3)
+    except requests.RequestException as e:
         print(f"Failed to send log to Splunk: {e}")
 
 @app.route('/api/status', methods=['GET'])

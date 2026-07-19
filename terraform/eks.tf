@@ -1,9 +1,9 @@
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 19.0"
+  version = "19.21.0"
 
-  cluster_name    = "devsecops-cluster"
-  cluster_version = "1.28"
+  cluster_name    = "${var.project_name}-cluster"
+  cluster_version = var.kubernetes_version
 
   vpc_id                   = module.vpc.vpc_id
   subnet_ids               = module.vpc.private_subnets
@@ -19,13 +19,21 @@ module "eks" {
       min_size     = 1
       max_size     = 3
 
-      instance_types = ["t3.micro"]
+      instance_types = ["t3.small"]
       capacity_type  = "ON_DEMAND"
 
-	ami_type = "AL2_x86_64"
+      ami_type = "AL2_x86_64"
     }
   }
 
-  # Allow the deployer to access the cluster via the CLI
-  cluster_endpoint_public_access = true
+  cluster_endpoint_public_access  = false
+  cluster_endpoint_private_access = true
+
+  cluster_enabled_log_types = [
+    "api",
+    "audit",
+    "authenticator",
+    "controllerManager",
+    "scheduler",
+  ]
 }

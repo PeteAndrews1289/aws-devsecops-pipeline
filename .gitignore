@@ -9,6 +9,8 @@ venv/
 *.tfstate
 *.tfstate.backup
 *.tfvars
+*.tfplan
+crash.log
 
 # Mac/OS
 .DS_Store
@@ -21,3 +23,8 @@ venv/
 *.pem
 *.key
 .env
+
+# Kubernetes and cloud credentials
+kubeconfig*
+*.kubeconfig
+aws-credentials*
