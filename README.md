@@ -79,7 +79,7 @@ docs/                         findings, lifecycle notes, and historical evidence
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -r app/remediated/requirements-dev.txt
-pytest -q app/remediated/tests
+python -m pytest -q app/remediated/tests
 bandit -q -r app/remediated -x app/remediated/tests
 python scripts/validate_repository.py
 gunicorn --chdir app/remediated --bind 127.0.0.1:5000 app:app
